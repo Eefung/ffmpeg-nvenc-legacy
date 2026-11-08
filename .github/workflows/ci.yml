@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  patch-applies:
+    name: 补丁能否应用到 pinned ffmpeg
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 校验 nvenc 补丁
+        run: |
+          set -euo pipefail
+          ver=$(sed -n 's/^pkgver=//p' PKGBUILD)
+          echo "ffmpeg 版本: $ver"
+          curl -sSLO "https://ffmpeg.org/releases/ffmpeg-$ver.tar.xz"
+          tar xf "ffmpeg-$ver.tar.xz"
+          cd "ffmpeg-$ver"
+          patch -Np1 --dry-run -i ../0001-Add-av_stream_get_first_dts-for-Chromium.patch
+          patch -Np1 --dry-run -i ../nvenc-runtime-api-version.patch
+          echo "两个补丁均可干净应用"
+
+  lint:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 安装 shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
+
+      - name: 检查脚本
+        run: |
+          set -euo pipefail
+          shellcheck -S warning install.sh uninstall.sh
+          bash -n install.sh
+          bash -n uninstall.sh
+          echo "脚本检查通过"
